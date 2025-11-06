@@ -1,9 +1,12 @@
+#ifndef FRUIT_PICKING_H
+#define FRUIT_PICKING_H
+
 #include <ostream>
 #include <utility>
 
-constexpr enum class Taste { SWEET, SOUR };
-constexpr enum class Size { LARGE, MEDIUM, SMALL };
-constexpr enum class Quality { HEALTHY, ROTTEN, WORMY };
+enum class Taste { SWEET, SOUR };
+enum class Size { LARGE, MEDIUM, SMALL };
+enum class Quality { HEALTHY, ROTTEN, WORMY };
 
 std::ostream& operator <<(std::ostream& os, const Taste& taste) {
     switch (taste) {
@@ -60,8 +63,6 @@ public:
 
     constexpr Fruit& operator =(const Fruit& ) = default;
     constexpr Fruit& operator =(Fruit&& ) = default;
-    
-    
 
     constexpr bool operator ==(const Fruit& other) const {
         return _taste == other.taste() 
@@ -94,3 +95,5 @@ std::ostream& operator <<(std::ostream& os, const Fruit& fruit) {
        << " " << fruit.quality() << " ]";
     return os;
 }
+
+#endif
