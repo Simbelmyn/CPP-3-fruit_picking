@@ -1,8 +1,11 @@
 #ifndef FRUIT_PICKING_H
 #define FRUIT_PICKING_H
 
+#include <algorithm>
+#include <list>
 #include <ostream>
 #include <utility>
+#include <vector>
 
 enum class Taste { SWEET, SOUR };
 enum class Size { LARGE, MEDIUM, SMALL };
@@ -70,13 +73,13 @@ public:
                and _quality == other.quality();
     }
 
-    void make_rotten() { 
+    void go_rotten() { 
         if (_quality == Quality::HEALTHY) {
             _quality = Quality::ROTTEN;
         }
     }
 
-    void make_wormy() { 
+    void become_worm_infested() { 
         if (_quality == Quality::HEALTHY) {
             _quality = Quality::WORMY;
         }
@@ -95,5 +98,87 @@ std::ostream& operator <<(std::ostream& os, const Fruit& fruit) {
        << " " << fruit.quality() << " ]";
     return os;
 }
+
+class Picker { // temporary
+public:
+    bool operator ==(const Picker& other) const = default; // temporary
+    bool operator <(const Picker& other) const { return true; } // temporary
+    bool operator <=(const Picker& other) const { return true; } // temporary
+};
+
+// WAŻNE - zakładam, że picker_a <= picker_b implikuje, ze picker_b bedzie
+//         wyżej w rankingu niż picker_a!
+class Ranking { 
+private:
+    std::vector<Picker> _ranking;
+public:
+    constexpr Ranking() : _ranking(std::vector<Picker>()) {}
+
+    constexpr Ranking(const std::initializer_list<Picker>& list) 
+        : _ranking(list)
+    {}
+    constexpr Ranking(std::initializer_list<Picker>&& list) 
+        : _ranking(list) 
+    {}
+
+    constexpr Ranking(const Ranking& ranking) = default;
+    constexpr Ranking(Ranking&& ranking) = default;
+
+    constexpr ~Ranking() = default;
+
+    constexpr Ranking& operator=(const Ranking& other) = default;
+    constexpr Ranking& operator=(Ranking&& other) = default;
+
+    constexpr void operator +=(const Picker& picker) {
+        auto it = _ranking.begin();
+        while (it != _ranking.end() and picker < *it) ++it;
+        _ranking.insert(it, picker);
+    }
+
+    constexpr void operator +=(Picker&& picker) {
+        auto it = _ranking.begin();
+        while (it != _ranking.end() and picker < *it) ++it;
+        _ranking.insert(it, std::move(picker)); 
+    }
+
+    constexpr void operator +=(const Ranking& other) {
+        std::vector<Picker> new_ranking;
+        auto it1 = _ranking.begin();
+        auto it2 = other._ranking.begin();
+
+        while (it1 != _ranking.end() and it2 != other._ranking.end()) {
+            if (*it1 < *it2) {
+                new_ranking.emplace_back(*it2++);
+            }
+            else {
+                new_ranking.emplace_back(std::move(*it1++));
+            }
+        }
+        std::move(it1, _ranking.end(), std::back_inserter(new_ranking));
+        new_ranking.insert(new_ranking.end(), it2, other._ranking.end());
+
+        _ranking = std::move(new_ranking);
+    }
+
+    constexpr void operator +=(Ranking&& other) {
+        std::vector<Picker> new_ranking;
+        auto it1 = _ranking.begin();
+        auto it2 = other._ranking.begin();
+
+        while (it1 != _ranking.end() and it2 != other._ranking.end()) {
+            if (*it1 < *it2) {
+                new_ranking.emplace_back(std::move(*it2++));
+            }
+            else {
+                new_ranking.emplace_back(std::move(*it1++));
+            }
+        }
+        std::move(it1, _ranking.end(), std::back_inserter(new_ranking));
+        std::move(it2, other._ranking.end(), std::back_inserter(new_ranking));
+
+        _ranking = std::move(new_ranking);
+    }
+
+};
 
 #endif
