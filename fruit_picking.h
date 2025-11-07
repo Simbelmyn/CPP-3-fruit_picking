@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <list>
 #include <ostream>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -99,12 +100,16 @@ std::ostream& operator <<(std::ostream& os, const Fruit& fruit) {
     return os;
 }
 
-class Picker { // temporary
+class Picker { // placeholder
 public:
-    bool operator ==(const Picker& other) const = default; // temporary
-    bool operator <(const Picker& other) const { return true; } // temporary
-    bool operator <=(const Picker& other) const { return true; } // temporary
+    bool operator ==(const Picker& other) const = default; // placeholder
+    bool operator <(const Picker& other) const { return true; } // placeholder
+    bool operator <=(const Picker& other) const { return true; } // placeholder
 };
+
+std::ostream& operator <<(std::ostream& os, const Picker& picker) { // placeholder
+    return os;
+}
 
 // WAŻNE - zakładam, że picker_a <= picker_b implikuje, ze picker_b bedzie
 //         wyżej w rankingu niż picker_a!
@@ -129,19 +134,19 @@ public:
     constexpr Ranking& operator=(const Ranking& other) = default;
     constexpr Ranking& operator=(Ranking&& other) = default;
 
-    constexpr void operator +=(const Picker& picker) {
+    constexpr void operator+=(const Picker& picker) {
         auto it = _ranking.begin();
         while (it != _ranking.end() and picker < *it) ++it;
         _ranking.insert(it, picker);
     }
 
-    constexpr void operator +=(Picker&& picker) {
+    constexpr void operator+=(Picker&& picker) {
         auto it = _ranking.begin();
         while (it != _ranking.end() and picker < *it) ++it;
         _ranking.insert(it, std::move(picker)); 
     }
 
-    constexpr void operator +=(const Ranking& other) {
+    constexpr void operator+=(const Ranking& other) {
         std::vector<Picker> new_ranking;
         auto it1 = _ranking.begin();
         auto it2 = other._ranking.begin();
@@ -160,7 +165,7 @@ public:
         _ranking = std::move(new_ranking);
     }
 
-    constexpr void operator +=(Ranking&& other) {
+    constexpr void operator+=(Ranking&& other) {
         std::vector<Picker> new_ranking;
         auto it1 = _ranking.begin();
         auto it2 = other._ranking.begin();
@@ -179,6 +184,50 @@ public:
         _ranking = std::move(new_ranking);
     }
 
+    constexpr Ranking operator+(const Ranking& other) const {
+        Ranking result = *this;
+        result += other;
+        return result;
+    }
+
+    constexpr Ranking operator+(Ranking&& other) const {
+        Ranking result = *this;
+        result += other;
+        return result;
+    }
+
+    constexpr void operator-=(const Picker& picker) {
+        auto it = std::upper_bound(_ranking.rbegin(), _ranking.rend(), picker);
+        if (it == _ranking.rbegin()) return;
+        _ranking.erase(it.base());
+        // jeszcze do przetestownia (reverse_iterator.base() castuje na zwykły
+        // iterator i bierze nastepny element (juz w zwykłym ciągu))
+    }
+
+    constexpr void operator-=(Picker&& picker) {
+        auto it = std::upper_bound(_ranking.rbegin(), _ranking.rend(), picker);
+        if (it == _ranking.rbegin()) return;
+        _ranking.erase(it.base());
+    }
+
+    constexpr Picker operator[](size_t idx) const {
+        if (!_ranking.size())
+            throw std::runtime_error("Ranking is empty.");
+        
+        return _ranking[std::min(idx, _ranking.size()-1)];
+    }
+
+    constexpr size_t count_pickers() const { return _ranking.size(); }
 };
+
+std::ostream& operator<<(std::ostream& os, Ranking& ranking) {
+    for (size_t i = 0; i < ranking.count_pickers(); ++i) {
+        os << ranking[i];
+        if (i != ranking.count_pickers()-1) {
+            os << std::endl;
+        }
+    }
+    return os;
+}
 
 #endif
