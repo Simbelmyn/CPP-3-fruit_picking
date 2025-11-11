@@ -2,9 +2,12 @@
 #define FRUIT_PICKING_H
 
 #include <algorithm>
+#include <compare>
 #include <list>
 #include <ostream>
 #include <stdexcept>
+#include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -12,7 +15,7 @@ enum class Taste { SWEET, SOUR };
 enum class Size { LARGE, MEDIUM, SMALL };
 enum class Quality { HEALTHY, ROTTEN, WORMY };
 
-std::ostream& operator <<(std::ostream& os, const Taste& taste) {
+inline std::ostream& operator<<(std::ostream& os, const Taste& taste) {
     switch (taste) {
         case Taste::SWEET: os << "słodki"; break;
         case Taste::SOUR:  os << "kwaśny"; break;
@@ -20,7 +23,7 @@ std::ostream& operator <<(std::ostream& os, const Taste& taste) {
     return os;
 }
 
-std::ostream& operator <<(std::ostream& os, const Size& size) {
+inline std::ostream& operator<<(std::ostream& os, const Size& size) {
     switch (size) {
         case Size::LARGE: os << "duży"; break;
         case Size::MEDIUM: os << "średni"; break;
@@ -29,7 +32,7 @@ std::ostream& operator <<(std::ostream& os, const Size& size) {
     return os;
 }
 
-std::ostream& operator <<(std::ostream& os, const Quality& quality) {
+inline std::ostream& operator<<(std::ostream& os, const Quality& quality) {
     switch (quality) {
         case Quality::HEALTHY: os << "zdrowy"; break;
         case Quality::ROTTEN: os << "nadgniły"; break;
@@ -43,6 +46,7 @@ private:
     Taste _taste;
     Size _size;
     Quality _quality;
+
 public:
     constexpr Fruit(Taste taste, Size size, Quality quality)
         : _taste(taste)
@@ -50,8 +54,8 @@ public:
         , _quality(quality)
     {}
 
-    constexpr Fruit(const Fruit& fruit) = default;
-    constexpr Fruit(Fruit&& fruit) = default;
+    constexpr Fruit(const Fruit&) = default;
+    constexpr Fruit(Fruit&&) = default;
 
     explicit constexpr Fruit(const std::tuple<Taste, Size, Quality>& tuple)
         : _taste(std::get<0>(tuple))
@@ -65,13 +69,13 @@ public:
 
     constexpr ~Fruit() = default;
 
-    constexpr Fruit& operator =(const Fruit& ) = default;
-    constexpr Fruit& operator =(Fruit&& ) = default;
+    constexpr Fruit& operator=(const Fruit&) = default;
+    constexpr Fruit& operator=(Fruit&&) = default;
 
-    constexpr bool operator ==(const Fruit& other) const {
-        return _taste == other.taste() 
-               and _size == other.size()
-               and _quality == other.quality();
+    constexpr bool operator==(const Fruit& other) const {
+        return _taste == other._taste 
+               && _size == other._size
+               && _quality == other._quality;
     }
 
     void go_rotten() { 
@@ -94,138 +98,253 @@ public:
 constexpr Fruit YUMMY_ONE(Taste::SWEET, Size::LARGE, Quality::HEALTHY);
 constexpr Fruit ROTTY_ONE(Taste::SOUR, Size::SMALL, Quality::ROTTEN);
 
-std::ostream& operator <<(std::ostream& os, const Fruit& fruit) {
+inline std::ostream& operator<<(std::ostream& os, const Fruit& fruit) {
     os << "[ " << fruit.taste() << " " << fruit.size()
        << " " << fruit.quality() << " ]";
     return os;
 }
 
-class Picker { // placeholder
+class Picker {
+private:
+    std::string _name;
+    std::list<Fruit> _fruits;
+
 public:
-    bool operator ==(const Picker& other) const = default; // placeholder
-    bool operator <(const Picker& other) const { return true; } // placeholder
-    bool operator <=(const Picker& other) const { return true; } // placeholder
+    Picker(const std::string& name = "Anonim") 
+        : _name(name.empty() ? "Anonim" : name)
+        , _fruits()
+    {}
+    
+    Picker(const Picker&) = default;
+    Picker(Picker&&) = default;
+    
+    Picker& operator=(const Picker&) = default;
+    Picker& operator=(Picker&&) = default;
+    
+    const std::string& get_name() const { return _name; }
+    
+    Picker& operator+=(const Fruit& fruit) {
+        Fruit new_fruit = fruit;
+        
+        if (!_fruits.empty()) {
+            Fruit& last = _fruits.back();
+            
+            // Jeśli nowy owoc jest zdrowy, a ostatni nadgniły → nowy gnije
+            if (new_fruit.quality() == Quality::HEALTHY && 
+                last.quality() == Quality::ROTTEN) {
+                new_fruit.go_rotten();
+            }
+            // Jeśli nowy owoc jest nadgniły, a ostatni zdrowy → ostatni gnije
+            else if (new_fruit.quality() == Quality::ROTTEN && 
+                     last.quality() == Quality::HEALTHY) {
+                last.go_rotten();
+            }
+        }
+        
+        // Jeśli nowy owoc jest robaczywy → wszystkie słodkie zdrowe stają się robaczywe
+        if (new_fruit.quality() == Quality::WORMY) {
+            for (auto& f : _fruits) {
+                if (f.quality() == Quality::HEALTHY && 
+                    f.taste() == Taste::SWEET) {
+                    f.become_worm_infested();
+                }
+            }
+        }
+        
+        _fruits.push_back(new_fruit);
+        return *this;
+    }
+    
+    Picker& operator+=(Fruit&& fruit) {
+        return *this += fruit;
+    }
+    
+    Picker& operator+=(Picker& other) {
+        // Samemu sobie nie zabieramy
+        if (this == &other) return *this;
+        
+        if (!other._fruits.empty()) {
+            Fruit stolen = other._fruits.front();
+            other._fruits.pop_front();
+            *this += stolen;
+        }
+        return *this;
+    }
+    
+    Picker& operator-=(Picker& other) {
+        // Samemu sobie nie oddajemy
+        if (this == &other) return *this;
+        
+        if (!_fruits.empty()) {
+            Fruit given = _fruits.front();
+            _fruits.pop_front();
+            other += given;
+        }
+        return *this;
+    }
+    
+    size_t count() const {
+        return _fruits.size();
+    }
+    
+    size_t count(Taste taste) const {
+        return std::count_if(_fruits.begin(), _fruits.end(),
+            [taste](const Fruit& f) { return f.taste() == taste; });
+    }
+    
+    size_t count(Size size) const {
+        return std::count_if(_fruits.begin(), _fruits.end(),
+            [size](const Fruit& f) { return f.size() == size; });
+    }
+    
+    size_t count(Quality quality) const {
+        return std::count_if(_fruits.begin(), _fruits.end(),
+            [quality](const Fruit& f) { return f.quality() == quality; });
+    }
+    
+    auto operator<=>(const Picker& other) const {
+        // 1. Liczba zdrowych owoców
+        auto healthy_cmp = count(Quality::HEALTHY) <=> other.count(Quality::HEALTHY);
+        if (healthy_cmp != 0) return healthy_cmp;
+        
+        // 2. Liczba słodkich owoców
+        auto sweet_cmp = count(Taste::SWEET) <=> other.count(Taste::SWEET);
+        if (sweet_cmp != 0) return sweet_cmp;
+        
+        // 3. Liczba dużych owoców
+        auto large_cmp = count(Size::LARGE) <=> other.count(Size::LARGE);
+        if (large_cmp != 0) return large_cmp;
+        
+        // 4. Liczba średnich owoców
+        auto medium_cmp = count(Size::MEDIUM) <=> other.count(Size::MEDIUM);
+        if (medium_cmp != 0) return medium_cmp;
+        
+        // 5. Liczba małych owoców
+        auto small_cmp = count(Size::SMALL) <=> other.count(Size::SMALL);
+        if (small_cmp != 0) return small_cmp;
+        
+        // 6. Liczba wszystkich owoców
+        return count() <=> other.count();
+    }
+    
+    bool operator==(const Picker& other) const {
+        if (_name != other._name) return false;
+        if (_fruits.size() != other._fruits.size()) return false;
+        
+        auto it1 = _fruits.begin();
+        auto it2 = other._fruits.begin();
+        
+        while (it1 != _fruits.end()) {
+            if (!(*it1 == *it2)) return false;
+            ++it1;
+            ++it2;
+        }
+        
+        return true;
+    }
+    
+    friend std::ostream& operator<<(std::ostream& os, const Picker& picker);
 };
 
-std::ostream& operator <<(std::ostream& os, const Picker& picker) { // placeholder
+inline std::ostream& operator<<(std::ostream& os, const Picker& picker) {
+    os << picker._name << ":";
+    for (const auto& fruit : picker._fruits) {
+        os << "\n" << "\t" << fruit;
+    }
     return os;
 }
 
-// WAŻNE - zakładam, że picker_a <= picker_b implikuje, ze picker_b bedzie
-//         wyżej w rankingu niż picker_a!
 class Ranking { 
 private:
     std::vector<Picker> _ranking;
+
 public:
-    constexpr Ranking() : _ranking(std::vector<Picker>()) {}
+    Ranking() : _ranking() {}
 
-    constexpr Ranking(const std::initializer_list<Picker>& list) 
+    Ranking(std::initializer_list<Picker> list) 
         : _ranking(list)
-    {}
-    constexpr Ranking(std::initializer_list<Picker>&& list) 
-        : _ranking(list) 
-    {}
+    {
+        std::sort(_ranking.begin(), _ranking.end(), 
+            [](const Picker& a, const Picker& b) { return a > b; });
+    }
 
-    constexpr Ranking(const Ranking& ranking) = default;
-    constexpr Ranking(Ranking&& ranking) = default;
+    Ranking(const Ranking&) = default;
+    Ranking(Ranking&&) = default;
 
-    constexpr ~Ranking() = default;
+    ~Ranking() = default;
 
-    constexpr Ranking& operator=(const Ranking& other) = default;
-    constexpr Ranking& operator=(Ranking&& other) = default;
+    Ranking& operator=(const Ranking&) = default;
+    Ranking& operator=(Ranking&&) = default;
 
-    constexpr void operator+=(const Picker& picker) {
+    void operator+=(const Picker& picker) {
         auto it = _ranking.begin();
-        while (it != _ranking.end() and picker < *it) ++it;
+        // Szukamy pierwszego który jest gorszy lub równy (<= używając >=)
+        // Przy remisie, nowy picker idzie PO istniejących (zachowanie kolejności dodawania)
+        while (it != _ranking.end() && *it > picker) ++it;
         _ranking.insert(it, picker);
     }
 
-    constexpr void operator+=(Picker&& picker) {
+    void operator+=(Picker&& picker) {
         auto it = _ranking.begin();
-        while (it != _ranking.end() and picker < *it) ++it;
+        while (it != _ranking.end() && *it > picker) ++it;
         _ranking.insert(it, std::move(picker)); 
     }
 
-    constexpr void operator+=(const Ranking& other) {
-        std::vector<Picker> new_ranking;
-        auto it1 = _ranking.begin();
-        auto it2 = other._ranking.begin();
-
-        while (it1 != _ranking.end() and it2 != other._ranking.end()) {
-            if (*it1 < *it2) {
-                new_ranking.emplace_back(*it2++);
-            }
-            else {
-                new_ranking.emplace_back(std::move(*it1++));
-            }
-        }
-        std::move(it1, _ranking.end(), std::back_inserter(new_ranking));
-        new_ranking.insert(new_ranking.end(), it2, other._ranking.end());
-
-        _ranking = std::move(new_ranking);
-    }
-
-    constexpr void operator+=(Ranking&& other) {
-        std::vector<Picker> new_ranking;
-        auto it1 = _ranking.begin();
-        auto it2 = other._ranking.begin();
-
-        while (it1 != _ranking.end() and it2 != other._ranking.end()) {
-            if (*it1 < *it2) {
-                new_ranking.emplace_back(std::move(*it2++));
-            }
-            else {
-                new_ranking.emplace_back(std::move(*it1++));
-            }
-        }
-        std::move(it1, _ranking.end(), std::back_inserter(new_ranking));
-        std::move(it2, other._ranking.end(), std::back_inserter(new_ranking));
-
-        _ranking = std::move(new_ranking);
-    }
-
-    constexpr Ranking operator+(const Ranking& other) const {
-        Ranking result = *this;
-        result += other;
-        return result;
-    }
-
-    constexpr Ranking operator+(Ranking&& other) const {
-        Ranking result = *this;
-        result += other;
-        return result;
-    }
-
-    constexpr void operator-=(const Picker& picker) {
-        auto it = std::upper_bound(_ranking.rbegin(), _ranking.rend(), picker);
-        if (it == _ranking.rbegin()) return;
-        _ranking.erase(it.base());
-        // jeszcze do przetestownia (reverse_iterator.base() castuje na zwykły
-        // iterator i bierze nastepny element (juz w zwykłym ciągu))
-    }
-
-    constexpr void operator-=(Picker&& picker) {
-        auto it = std::upper_bound(_ranking.rbegin(), _ranking.rend(), picker);
-        if (it == _ranking.rbegin()) return;
-        _ranking.erase(it.base());
-    }
-
-    constexpr Picker operator[](size_t idx) const {
-        if (!_ranking.size())
-            throw std::runtime_error("Ranking is empty.");
+    void operator+=(const Ranking& other) {
+        // Ranking += samego siebie → bez zmian
+        if (this == &other) return;
         
-        return _ranking[std::min(idx, _ranking.size()-1)];
+        for (const auto& picker : other._ranking) {
+            *this += picker;
+        }
     }
 
-    constexpr size_t count_pickers() const { return _ranking.size(); }
+    void operator+=(Ranking&& other) {
+        // Ranking += samego siebie → bez zmian
+        if (this == &other) return;
+        
+        for (auto& picker : other._ranking) {
+            *this += std::move(picker);
+        }
+    }
+
+    Ranking operator+(const Ranking& other) const {
+        Ranking result = *this;
+        result += other;
+        return result;
+    }
+
+    Ranking operator+(Ranking&& other) const {
+        Ranking result = *this;
+        result += std::move(other);
+        return result;
+    }
+
+    void operator-=(const Picker& picker) {
+        for (auto it = _ranking.begin(); it != _ranking.end(); ++it) {
+            if (*it == picker) {
+                _ranking.erase(it);
+                return;
+            }
+        }
+    }
+
+    const Picker& operator[](size_t idx) const {
+        // Zachowanie niezdefiniowane dla pustego rankingu (zgodnie z forum)
+        return _ranking[std::min(idx, _ranking.size() - 1)];
+    }
+
+    size_t count_pickers() const { return _ranking.size(); }
 };
 
-std::ostream& operator<<(std::ostream& os, Ranking& ranking) {
+inline std::ostream& operator<<(std::ostream& os, const Ranking& ranking) {
     for (size_t i = 0; i < ranking.count_pickers(); ++i) {
+        if (i > 0) os << "\n";
         os << ranking[i];
-        if (i != ranking.count_pickers()-1) {
-            os << std::endl;
-        }
+    }
+    // Niepusty ranking kończy się \n
+    if (ranking.count_pickers() > 0) {
+        os << "\n";
     }
     return os;
 }
