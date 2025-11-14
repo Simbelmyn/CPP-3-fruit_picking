@@ -77,7 +77,7 @@ class Fruit {
 
   public:
     // Constructor: creates a fruit with specified attributes
-    constexpr Fruit(Taste taste, Size size, Quality quality)
+    explicit constexpr Fruit(Taste taste, Size size, Quality quality)
         : _taste(taste), _size(size), _quality(quality) {}
 
     // Default copy and move constructors
@@ -138,8 +138,8 @@ constexpr Fruit ROTTY_ONE(Taste::SOUR, Size::SMALL, Quality::ROTTEN);
 
 // Stream output operator: outputs fruit in format "[ taste size quality ]"
 inline std::ostream &operator<<(std::ostream &os, const Fruit &fruit) {
-    os << "[ " << fruit.taste() << " " << fruit.size() << " " << fruit.quality()
-       << " ]";
+    os << "[" << fruit.taste() << " " << fruit.size() << " " << fruit.quality()
+       << "]";
     return os;
 }
 
@@ -156,8 +156,12 @@ class Picker {
   public:
     // Constructor: creates a picker with given name (defaults to "Anonim" if
     // empty)
-    Picker(const std::string &name = "Anonim")
-        : _name(name.empty() ? "Anonim" : name), _fruits() {}
+    // Picker(const std::string &name = "Anonim")
+    //     : _name(name.empty() ? "Anonim" : name), _fruits() {}
+    // Picker(std::string &&name)
+    //     : _name(name.empty() ? "Anonim" : std::move(name)), _fruits() {}
+    Picker(std::string_view name = "Anonim")
+        : _name(name.empty() ? "Anonim" : std::move(name)), _fruits() {}
 
     // Default copy and move constructors
     Picker(const Picker &) = default;
@@ -179,9 +183,7 @@ class Picker {
      * - If new fruit is rotten and last fruit is healthy → last fruit rots
      * - If new fruit is wormy → all healthy sweet fruits become wormy
      */
-    Picker &operator+=(const Fruit &fruit) {
-        Fruit new_fruit = fruit;
-
+    Picker &operator+=(Fruit new_fruit) {
         if (!_fruits.empty()) {
             Fruit &last = _fruits.back();
 
@@ -209,11 +211,6 @@ class Picker {
 
         _fruits.push_back(new_fruit);
         return *this;
-    }
-
-    // Move version of operator+= - properly forwards the rvalue
-    Picker &operator+=(Fruit &&fruit) {
-        return *this += fruit;
     }
 
     /**
@@ -252,26 +249,26 @@ class Picker {
     }
 
     // Returns total number of fruits picked
-    size_t count() const {
+    size_t count_fruits() const {
         return _fruits.size();
     }
 
     // Returns number of fruits with given taste
-    size_t count(Taste taste) const {
+    size_t count_taste(Taste taste) const {
         return std::count_if(
             _fruits.begin(), _fruits.end(),
             [taste](const Fruit &f) { return f.taste() == taste; });
     }
 
     // Returns number of fruits with given size
-    size_t count(Size size) const {
+    size_t count_size(Size size) const {
         return std::count_if(
             _fruits.begin(), _fruits.end(),
             [size](const Fruit &f) { return f.size() == size; });
     }
 
     // Returns number of fruits with given quality
-    size_t count(Quality quality) const {
+    size_t count_quality(Quality quality) const {
         return std::count_if(
             _fruits.begin(), _fruits.end(),
             [quality](const Fruit &f) { return f.quality() == quality; });
@@ -290,32 +287,37 @@ class Picker {
     auto operator<=>(const Picker &other) const {
         // 1. Number of healthy fruits
         auto healthy_cmp =
-            count(Quality::HEALTHY) <=> other.count(Quality::HEALTHY);
+            other.count_quality(Quality::HEALTHY) 
+            <=> count_quality(Quality::HEALTHY);
         if (healthy_cmp != 0)
             return healthy_cmp;
 
         // 2. Number of sweet fruits
-        auto sweet_cmp = count(Taste::SWEET) <=> other.count(Taste::SWEET);
+        auto sweet_cmp = 
+            other.count_taste(Taste::SWEET) <=> count_taste(Taste::SWEET);
         if (sweet_cmp != 0)
             return sweet_cmp;
 
         // 3. Number of large fruits
-        auto large_cmp = count(Size::LARGE) <=> other.count(Size::LARGE);
+        auto large_cmp = 
+            other.count_size(Size::LARGE) <=> count_size(Size::LARGE);
         if (large_cmp != 0)
             return large_cmp;
 
         // 4. Number of medium fruits
-        auto medium_cmp = count(Size::MEDIUM) <=> other.count(Size::MEDIUM);
+        auto medium_cmp =   
+            other. count_size(Size::MEDIUM) <=> count_size(Size::MEDIUM);
         if (medium_cmp != 0)
             return medium_cmp;
 
         // 5. Number of small fruits
-        auto small_cmp = count(Size::SMALL) <=> other.count(Size::SMALL);
+        auto small_cmp = 
+            other.count_size(Size::SMALL) <=> count_size(Size::SMALL);
         if (small_cmp != 0)
             return small_cmp;
 
         // 6. Total number of fruits
-        return count() <=> other.count();
+        return other.count_fruits() <=> count_fruits();
     }
 
     /**
@@ -374,7 +376,7 @@ class Ranking {
     Ranking(std::initializer_list<Picker> list) : _ranking(list) {
         std::stable_sort(
             _ranking.begin(), _ranking.end(),
-            [](const Picker &a, const Picker &b) { return a > b; });
+            [](const Picker &a, const Picker &b) { return a < b; });
     }
 
     // Default copy and move constructors
@@ -390,21 +392,23 @@ class Ranking {
      * In case of a tie, the new picker is placed after existing pickers with
      * the same score (stable insertion).
      */
-    void operator+=(const Picker &picker) {
+    Ranking& operator+=(const Picker &picker) {
         auto it = _ranking.begin();
         // Find position: skip all pickers that are better than or equal to new
         // picker
-        while (it != _ranking.end() && !(*it < picker))
+        while (it != _ranking.end() && !(*it > picker))
             ++it;
         _ranking.insert(it, picker);
+        return *this;
     }
 
     // Move version of operator+=
-    void operator+=(Picker &&picker) {
+    Ranking& operator+=(Picker &&picker) {
         auto it = _ranking.begin();
-        while (it != _ranking.end() && !(*it < picker))
+        while (it != _ranking.end() && !(*it > picker))
             ++it;
         _ranking.insert(it, std::move(picker));
+        return *this;
     }
 
     /**
@@ -412,10 +416,7 @@ class Ranking {
      * Maintains stable ordering: when pickers are tied, those already in this
      * ranking appear before those from the other ranking.
      */
-    void operator+=(const Ranking &other) {
-        if (this == &other)
-            return;
-
+    Ranking& operator+=(const Ranking &other) {
         std::vector<Picker> result;
         result.reserve(_ranking.size() + other._ranking.size());
         auto it1 = _ranking.begin();
@@ -424,12 +425,12 @@ class Ranking {
         // Merge two sorted sequences maintaining stable order
         while (it1 != _ranking.end() && it2 != other._ranking.end()) {
             // If picker from this ranking is better, take it
-            if (*it1 > *it2) {
+            if (*it1 < *it2) {
                 result.push_back(*it1);
                 ++it1;
             }
             // If picker from other ranking is better, take it
-            else if (*it2 > *it1) {
+            else if (*it2 < *it1) {
                 result.push_back(*it2);
                 ++it2;
             }
@@ -442,22 +443,16 @@ class Ranking {
         }
 
         // Append remaining pickers
-        while (it1 != _ranking.end()) {
-            result.push_back(*it1);
-            ++it1;
-        }
-        while (it2 != other._ranking.end()) {
-            result.push_back(*it2);
-            ++it2;
-        }
-
+        std::move(it1, _ranking.end(), std::back_inserter(result));
+        result.insert(result.end(), it2, other._ranking.end());
         _ranking = std::move(result);
+        return *this;
     }
 
     // Move version of operator+=
-    void operator+=(Ranking &&other) {
+    Ranking& operator+=(Ranking &&other) {
         if (this == &other)
-            return;
+            return *this;
 
         std::vector<Picker> result;
         result.reserve(_ranking.size() + other._ranking.size());
@@ -465,10 +460,10 @@ class Ranking {
         auto it2 = other._ranking.begin();
 
         while (it1 != _ranking.end() && it2 != other._ranking.end()) {
-            if (*it1 > *it2) {
+            if (*it1 < *it2) {
                 result.push_back(std::move(*it1));
                 ++it1;
-            } else if (*it2 > *it1) {
+            } else if (*it2 < *it1) {
                 result.push_back(std::move(*it2));
                 ++it2;
             } else {
@@ -478,16 +473,10 @@ class Ranking {
             }
         }
 
-        while (it1 != _ranking.end()) {
-            result.push_back(std::move(*it1));
-            ++it1;
-        }
-        while (it2 != other._ranking.end()) {
-            result.push_back(std::move(*it2));
-            ++it2;
-        }
-
+        std::move(it1, _ranking.end(), std::back_inserter(result));
+        std::move(it2, other._ranking.end(), std::back_inserter(result));
         _ranking = std::move(result);
+        return *this;
     }
 
     // Creates a new ranking by merging two rankings (const version)
@@ -520,11 +509,13 @@ class Ranking {
     /**
      * Returns the picker at the given position (0-indexed).
      * If index is out of bounds, returns the last picker.
-     * Behavior is undefined for empty rankings.
+     * Throws a Runtime Error for empty rankings.
      */
-    const Picker &operator[](size_t idx) const {
-        // Note: behavior is undefined for empty ranking (as per specification)
-        return _ranking[std::min(idx, _ranking.size() - 1)];
+    const Picker& operator[](size_t idx) const {
+        if (!_ranking.size())
+            throw std::runtime_error("Ranking is empty.");
+        
+        return _ranking[std::min(idx, _ranking.size()-1)];
     }
 
     // Returns the total number of pickers in the ranking
