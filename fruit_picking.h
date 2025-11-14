@@ -7,6 +7,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -156,10 +157,6 @@ class Picker {
   public:
     // Constructor: creates a picker with given name (defaults to "Anonim" if
     // empty)
-    // Picker(const std::string &name = "Anonim")
-    //     : _name(name.empty() ? "Anonim" : name), _fruits() {}
-    // Picker(std::string &&name)
-    //     : _name(name.empty() ? "Anonim" : std::move(name)), _fruits() {}
     Picker(std::string_view name = "Anonim")
         : _name(name.empty() ? "Anonim" : std::move(name)), _fruits() {}
 
